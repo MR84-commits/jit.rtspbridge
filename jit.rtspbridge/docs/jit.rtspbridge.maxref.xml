@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+
+<?xml-stylesheet href="./_c74_ref.xsl" type="text/xsl"?>
+
+<c74object name="jit.rtspbridge" module="jitter" category="Jitter, Video">
+
+	<digest>
+		RTSP to Jitter matrix bridge with low-latency FFmpeg decoding.
+	</digest>
+
+	<description>
+		Connects to RTSP video streams (IP cameras, etc.) and outputs Jitter matrices for real-time video processing.
+		Uses FFmpeg for decoding with low-latency optimizations. Decoding runs in a background thread to avoid blocking Max.
+		<br/><br/>
+		Outputs:
+		<br/>
+		- left: 4-plane char Jitter matrix (ARGB)
+		<br/>
+		- right: status messages (connected, url, transport)
+	</description>
+
+	<!-- METADATA -->
+	<metadatalist>
+		<metadata name="author">benoit</metadata>
+		<metadata name="tag">Jitter</metadata>
+		<metadata name="tag">Video</metadata>
+		<metadata name="tag">RTSP</metadata>
+		<metadata name="tag">streaming</metadata>
+		<metadata name="tag">IP camera</metadata>
+		<metadata name="tag">FFmpeg</metadata>
+		<metadata name="tag">low-latency</metadata>
+	</metadatalist>
+
+	<!-- INLETS -->
+	<inletlist>
+		<inlet id="0" type="INLET_TYPE">
+			<digest>
+				Control inlet
+			</digest>
+			<description>
+				Accepts messages: <m>connect</m>, <m>disconnect</m>, <m>bang</m>, <m>url</m>, <m>dump</m>.
+			</description>
+		</inlet>
+	</inletlist>
+
+	<!-- OUTLETS -->
+	<outletlist>
+		<outlet id="0" type="OUTLET_TYPE">
+			<digest>
+				Matrix output
+			</digest>
+			<description>
+				Outputs <m>jit_matrix</m> with 4-plane char data (ARGB format) when banged.
+				Matrix dimensions match the source video unless @outw/@outh are set.
+			</description>
+		</outlet>
+
+		<outlet id="1" type="OUTLET_TYPE">
+			<digest>
+				Status messages
+			</digest>
+			<description>
+				Outputs status messages:
+				<br/><br/>
+				- <m>connected 1</m> when connection starts
+				<br/>
+				- <m>connected 0</m> when disconnected
+				<br/>
+				- <m>url &lt;symbol&gt;</m> (via dump)
+				<br/>
+				- <m>transport &lt;symbol&gt;</m> (via dump)
+			</description>
+		</outlet>
+	</outletlist>
+
+	<!-- ARGUMENTS -->
+	<objarglist>
+		<objarg name="(none)" optional="1" type="symbol">
+			<digest>
+				No creation arguments
+			</digest>
+			<description>
+				<o>jit.rtspbridge</o> takes no creation arguments. Configure via attributes.
+			</description>
+		</objarg>
+	</objarglist>
+
+	<!-- MESSAGES -->
+	<methodlist>
+
+		<method name="connect">
+			<arglist />
+			<digest>
+				Connect to RTSP stream
+			</digest>
+			<description>
+				Starts the background decode thread and connects to the RTSP stream specified by @url.
+				Outputs <m>connected 1</m> from the right outlet when connection is established.
+			</description>
+		</method>
+
+		<method name="disconnect">
+			<arglist />
+			<digest>
+				Disconnect from stream
+			</digest>
+			<description>
+				Stops the decode thread and closes the RTSP connection.
+				Outputs <m>connected 0</m> from the right outlet.
+			</description>
+		</method>
+
+		<method name="bang">
+			<arglist />
+			<digest>
+				Output current frame
+			</digest>
+			<description>
+				Outputs the latest decoded video frame as a Jitter matrix from the left outlet.
+				Use with <o>qmetro</o> to drive frame output at your desired rate.
+				<br/><br/>
+				If no new frame is available, nothing is output.
+			</description>
+		</method>
+
+		<method name="url">
+			<arglist>
+				<arg name="url" optional="0" type="symbol" />
+			</arglist>
+			<digest>
+				Set RTSP URL
+			</digest>
+			<description>
+				Sets the RTSP stream URL. If currently connected, disconnects first.
+				<br/><br/>
+				Example: <m>url rtsp://admin:password@192.168.1.50:554/h264Preview_01_main</m>
+			</description>
+		</method>
+
+		<method name="dump">
+			<arglist />
+			<digest>
+				Output current settings
+			</digest>
+			<description>
+				Outputs the current URL and transport setting from the right outlet as separate messages:
+				<br/>
+				<m>url &lt;symbol&gt;</m>
+				<br/>
+				<m>transport &lt;symbol&gt;</m>
+			</description>
+		</method>
+
+	</methodlist>
+
+	<!-- ATTRIBUTES -->
+	<attributelist>
+
+		<attribute name="url" get="1" set="1" type="symbol" size="1">
+			<digest>RTSP URL</digest>
+			<description>
+				The RTSP stream URL to connect to.
+				<br/><br/>
+				Format: <m>rtsp://[user:password@]host:port/path</m>
+				<br/><br/>
+				Examples:
+				<br/>
+				- <m>rtsp://admin:pass@192.168.1.50:554/h264Preview_01_main</m> (Reolink main)
+				<br/>
+				- <m>rtsp://admin:pass@192.168.1.50:554/h264Preview_01_sub</m> (Reolink sub)
+			</description>
+			<attributelist>
+				<attribute name="label" get="1" set="1" type="symbol" size="1" value="RTSP URL" />
+			</attributelist>
+		</attribute>
+
+		<attribute name="transport" get="1" set="1" type="symbol" size="1">
+			<digest>RTSP Transport</digest>
+			<description>
+				Transport protocol: <m>tcp</m> (default) or <m>udp</m>.
+				<br/><br/>
+				TCP is more reliable over networks. UDP may have slightly lower latency on local networks but can drop packets.
+			</description>
+			<attributelist>
+				<attribute name="default" get="1" set="1" type="symbol" size="1" value="tcp" />
+				<attribute name="label" get="1" set="1" type="symbol" size="1" value="RTSP Transport" />
+			</attributelist>
+		</attribute>
+
+		<attribute name="autoconnect" get="1" set="1" type="int" size="1">
+			<digest>Auto Connect</digest>
+			<description>
+				If enabled (1), automatically connects to the stream when the object is created and a URL is set.
+			</description>
+			<attributelist>
+				<attribute name="default" get="1" set="1" type="int" size="1" value="0" />
+				<attribute name="label" get="1" set="1" type="symbol" size="1" value="Auto Connect" />
+				<attribute name="style" get="1" set="1" type="symbol" size="1" value="onoff" />
+			</attributelist>
+		</attribute>
+
+		<attribute name="outw" get="1" set="1" type="int" size="1">
+			<digest>Output Width</digest>
+			<description>
+				Output matrix width. Set to 0 (default) to use the source video width.
+				<br/><br/>
+				Scaling adds processing overhead, so leave at 0 for lowest latency.
+			</description>
+			<attributelist>
+				<attribute name="default" get="1" set="1" type="int" size="1" value="0" />
+				<attribute name="label" get="1" set="1" type="symbol" size="1" value="Output Width" />
+			</attributelist>
+		</attribute>
+
+		<attribute name="outh" get="1" set="1" type="int" size="1">
+			<digest>Output Height</digest>
+			<description>
+				Output matrix height. Set to 0 (default) to use the source video height.
+				<br/><br/>
+				Scaling adds processing overhead, so leave at 0 for lowest latency.
+			</description>
+			<attributelist>
+				<attribute name="default" get="1" set="1" type="int" size="1" value="0" />
+				<attribute name="label" get="1" set="1" type="symbol" size="1" value="Output Height" />
+			</attributelist>
+		</attribute>
+
+		<attribute name="verbose" get="1" set="1" type="int" size="1">
+			<digest>Verbose Mode</digest>
+			<description>
+				If enabled (1), prints debug messages to the Max console including frame counts and decode status.
+			</description>
+			<attributelist>
+				<attribute name="default" get="1" set="1" type="int" size="1" value="0" />
+				<attribute name="label" get="1" set="1" type="symbol" size="1" value="Verbose Mode" />
+				<attribute name="style" get="1" set="1" type="symbol" size="1" value="onoff" />
+			</attributelist>
+		</attribute>
+
+	</attributelist>
+
+	<!-- SEE ALSO -->
+	<seealsolist>
+		<seealso name="jit.movie" />
+		<seealso name="jit.grab" />
+		<seealso name="jit.world" />
+		<seealso name="jit.pwindow" />
+		<seealso name="qmetro" />
+	</seealsolist>
+
+</c74object>
